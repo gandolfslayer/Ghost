@@ -3,7 +3,6 @@
 
 # ARG should match or exceed the required Node version (currently >=22.13.1)
 ARG NODE_VERSION=22.18.0
-
 # --------------------
 # Base Image
 # --------------------
