@@ -3,11 +3,14 @@
 
 # ARG should match or exceed the required Node version (currently >=22.13.1)
 ARG NODE_VERSION=22.18.0
+
 # --------------------
-# Base Image
+# Base Image (FIXED: Robust APT installation)
 # --------------------
 FROM node:$NODE_VERSION-bullseye-slim AS base
-# Install necessary packages for building and dependencies
+WORKDIR /tmp
+
+# Install core system dependencies (everything except stripe)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
@@ -19,13 +22,19 @@ RUN apt-get update && \
     tar \
     git \
     rsync && \
-    # Setup Stripe CLI repository
-    curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/public | gpg --dearmor | tee /usr/share/keyrings/stripe.gpg > /dev/null && \
-    echo "deb [signed-by=/usr/share/keyrings/stripe.gpg] https://packages.stripe.dev/stripe-cli-debian-local stable main" | tee -a /etc/apt/sources.list.d/stripe.list > /dev/null && \
+    \
+# Install Stripe CLI in a robust way
+    curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/public \
+    | gpg --dearmor \
+    | tee /usr/share/keyrings/stripe.gpg > /dev/null && \
+    echo "deb [signed-by=/usr/share/keyrings/stripe.gpg] https://packages.stripe.dev/stripe-cli-debian-local stable main" \
+    | tee -a /etc/apt/sources.list.d/stripe.list > /dev/null && \
+    \
+# Update APT index again to include the new Stripe repository, then install stripe
     apt-get update && \
-    apt-get install -y --no-install-recommends \
-    stripe && \
-    # Cleanup to reduce image size
+    apt-get install -y --no-install-recommends stripe && \
+    \
+# Clean up
     rm -rf /var/lib/apt/lists/* && \
     apt clean
 
