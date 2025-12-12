@@ -1,26 +1,32 @@
 # Development Dockerfile for Ghost Monorepo
 # Not intended for production use. See https://github.com/tryghost/ghost-docker for production-ready self-hosting setup.
 
+# ARG should match or exceed the required Node version (currently >=22.13.1)
 ARG NODE_VERSION=22.18.0
 
 # --------------------
 # Base Image
 # --------------------
 FROM node:$NODE_VERSION-bullseye-slim AS base
+# Install necessary packages for building and dependencies
 RUN apt-get update && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     jq \
     libjemalloc2 \
     python3 \
-    tar  \
-    git &&  \
-    curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/public | gpg --dearmor | tee /usr/share/keyrings/stripe.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/stripe.gpg] https://packages.stripe.dev/stripe-cli-debian-local stable main" | tee -a /etc/apt/sources.list.d/stripe.list && \
+    python3-pip \
+    tar \
+    git \
+    rsync && \
+    # Setup Stripe CLI repository
+    curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/public | gpg --dearmor | tee /usr/share/keyrings/stripe.gpg > /dev/null && \
+    echo "deb [signed-by=/usr/share/keyrings/stripe.gpg] https://packages.stripe.dev/stripe-cli-debian-local stable main" | tee -a /etc/apt/sources.list.d/stripe.list > /dev/null && \
     apt-get update && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
     stripe && \
+    # Cleanup to reduce image size
     rm -rf /var/lib/apt/lists/* && \
     apt clean
 
@@ -36,7 +42,7 @@ COPY package.json yarn.lock ./
 ## See development.entrypoint.sh for more info
 RUN mkdir -p .yarnhash && md5sum yarn.lock | awk '{print $1}' > .yarnhash/yarn.lock.md5
 
-# Copy all package.json files
+# Copy all package.json files for dependency resolution/caching
 COPY apps/admin/package.json apps/admin/package.json
 COPY apps/stats/package.json apps/stats/package.json
 COPY apps/activitypub/package.json apps/activitypub/package.json
@@ -58,6 +64,7 @@ COPY ghost/admin/package.json ghost/admin/package.json
 COPY ghost/core/package.json ghost/core/package.json
 COPY ghost/i18n/package.json ghost/i18n/package.json
 
+# Install dependencies using cached mounts
 COPY .github/scripts/install-deps.sh .github/scripts/install-deps.sh
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn,id=yarn-cache \
     bash .github/scripts/install-deps.sh
