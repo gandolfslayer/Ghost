@@ -1,3 +1,4 @@
+ARG NODE_VERSION=22.18.0
 # --------------------
 # Base Image (FIXED: Separate RUN steps for reliability)
 # --------------------
